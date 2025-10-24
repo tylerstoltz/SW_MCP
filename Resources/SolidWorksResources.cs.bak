@@ -1,0 +1,319 @@
+using System.ComponentModel;
+using ModelContextProtocol.Server;
+using SolidWorks.Interop.sldworks;
+using SolidWorks.Interop.swconst;
+using SolidWorksMCP.Services;
+
+namespace SolidWorksMCP.Resources;
+
+/// <summary>
+/// Tier 3: Resources for exposing SolidWorks state as readable data
+/// Note: The C# MCP SDK resource implementation is still evolving.
+/// For now, we expose these as tools that return structured data.
+/// When the SDK supports resources fully, these can be converted to proper MCP resources.
+/// </summary>
+[McpServerToolType]
+public class SolidWorksResources
+{
+    [McpServerTool]
+    [Description("Gets information about the currently active document including type, path, and modification status")]
+    public static object GetActiveDocumentResource(ISolidWorksConnection connection)
+    {
+        try
+        {
+            if (!connection.IsConnected)
+                return new { uri = "solidworks://active-document", error = "Not connected to SolidWorks" };
+
+            var doc = connection.ActiveDocument;
+            if (doc == null)
+                return new { uri = "solidworks://active-document", error = "No active document" };
+
+            var docType = (swDocumentTypes_e)doc.GetType();
+
+            return new
+            {
+                uri = "solidworks://active-document",
+                content = new
+                {
+                    name = doc.GetTitle(),
+                    type = docType.ToString(),
+                    path = doc.GetPathName(),
+                    isModified = doc.GetSaveFlag(),
+                    isReadOnly = doc.IsOpenedReadOnly(),
+                    visible = doc.Visible
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            return new { uri = "solidworks://active-document", error = ex.Message };
+        }
+    }
+
+    [McpServerTool]
+    [Description("Gets the feature tree of the active document, showing all features, sketches, and bodies")]
+    public static object GetFeatureTreeResource(ISolidWorksConnection connection)
+    {
+        try
+        {
+            if (!connection.IsConnected)
+                return new { uri = "solidworks://feature-tree", error = "Not connected to SolidWorks" };
+
+            var doc = connection.ActiveDocument;
+            if (doc == null)
+                return new { uri = "solidworks://feature-tree", error = "No active document" };
+
+            var features = new List<object>();
+            var feature = (Feature?)doc.FirstFeature();
+
+            while (feature != null)
+            {
+                features.Add(new
+                {
+                    name = feature.Name,
+                    typeName = feature.GetTypeName(),
+                    visible = feature.Visible,
+                    suppressed = feature.IsSuppressed()
+                });
+                feature = (Feature?)feature.GetNextFeature();
+            }
+
+            return new
+            {
+                uri = "solidworks://feature-tree",
+                content = new
+                {
+                    documentName = doc.GetTitle(),
+                    featureCount = features.Count,
+                    features = features
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            return new { uri = "solidworks://feature-tree", error = ex.Message };
+        }
+    }
+
+    [McpServerTool]
+    [Description("Gets currently selected entities in SolidWorks including their types and properties")]
+    public static object GetSelectionResource(ISolidWorksConnection connection)
+    {
+        try
+        {
+            if (!connection.IsConnected)
+                return new { uri = "solidworks://selection", error = "Not connected to SolidWorks" };
+
+            var doc = connection.ActiveDocument;
+            if (doc == null)
+                return new { uri = "solidworks://selection", error = "No active document" };
+
+            var selMgr = doc.SelectionManager;
+            var selectionCount = selMgr.GetSelectedObjectCount2(-1);
+
+            var selections = new List<object>();
+            for (int i = 1; i <= selectionCount; i++)
+            {
+                var obj = selMgr.GetSelectedObject6(i, -1);
+                var type = (swSelectType_e)selMgr.GetSelectedObjectType3(i, -1);
+
+                selections.Add(new
+                {
+                    index = i,
+                    type = type.ToString(),
+                    mark = selMgr.GetSelectedObjectMark(i, -1)
+                });
+            }
+
+            return new
+            {
+                uri = "solidworks://selection",
+                content = new
+                {
+                    selectionCount = selectionCount,
+                    selections = selections
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            return new { uri = "solidworks://selection", error = ex.Message };
+        }
+    }
+
+    [McpServerTool]
+    [Description("Gets all sketches in the active document with their names, planes, and entity counts")]
+    public static object GetSketchesResource(ISolidWorksConnection connection)
+    {
+        try
+        {
+            if (!connection.IsConnected)
+                return new { uri = "solidworks://sketches", error = "Not connected to SolidWorks" };
+
+            var doc = connection.ActiveDocument;
+            if (doc == null)
+                return new { uri = "solidworks://sketches", error = "No active document" };
+
+            var sketches = new List<object>();
+            var feature = (Feature?)doc.FirstFeature();
+
+            while (feature != null)
+            {
+                if (feature.GetTypeName() == "ProfileFeature")
+                {
+                    var sketch = (Sketch?)feature.GetSpecificFeature2();
+                    if (sketch != null)
+                    {
+                        sketches.Add(new
+                        {
+                            name = feature.Name,
+                            is3D = sketch.Is3D(),
+                            pointCount = sketch.GetPointCount(),
+                            segmentCount = sketch.GetSegmentCount()
+                        });
+                    }
+                }
+                feature = (Feature?)feature.GetNextFeature();
+            }
+
+            return new
+            {
+                uri = "solidworks://sketches",
+                content = new
+                {
+                    documentName = doc.GetTitle(),
+                    sketchCount = sketches.Count,
+                    sketches = sketches
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            return new { uri = "solidworks://sketches", error = ex.Message };
+        }
+    }
+
+    [McpServerTool]
+    [Description("Gets a specific sketch by name with detailed geometry information")]
+    public static object GetSketchByNameResource(
+        ISolidWorksConnection connection,
+        [Description("Name of the sketch to retrieve")] string sketchName)
+    {
+        try
+        {
+            if (!connection.IsConnected)
+                return new { uri = $"solidworks://sketches/{sketchName}", error = "Not connected to SolidWorks" };
+
+            var doc = connection.ActiveDocument;
+            if (doc == null)
+                return new { uri = $"solidworks://sketches/{sketchName}", error = "No active document" };
+
+            var feature = (Feature?)doc.FeatureByName(sketchName);
+            if (feature == null)
+                return new { uri = $"solidworks://sketches/{sketchName}", error = $"Sketch '{sketchName}' not found" };
+
+            var sketch = (Sketch?)feature.GetSpecificFeature2();
+            if (sketch == null)
+                return new { uri = $"solidworks://sketches/{sketchName}", error = "Feature is not a sketch" };
+
+            // Get sketch segments
+            var segments = new List<object>();
+            var sketchSegments = (object[])sketch.GetSketchSegments();
+            if (sketchSegments != null)
+            {
+                foreach (var seg in sketchSegments)
+                {
+                    var sketchSeg = (SketchSegment)seg;
+                    segments.Add(new
+                    {
+                        type = GetSegmentTypeName(sketchSeg),
+                        id = sketchSeg.GetID()
+                    });
+                }
+            }
+
+            return new
+            {
+                uri = $"solidworks://sketches/{sketchName}",
+                content = new
+                {
+                    name = feature.Name,
+                    is3D = sketch.Is3D(),
+                    pointCount = sketch.GetPointCount(),
+                    segmentCount = sketch.GetSegmentCount(),
+                    segments = segments.Take(50).ToList() // Limit to first 50
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            return new { uri = $"solidworks://sketches/{sketchName}", error = ex.Message };
+        }
+    }
+
+    [McpServerTool]
+    [Description("Gets configuration information for the active document")]
+    public static object GetConfigurationsResource(ISolidWorksConnection connection)
+    {
+        try
+        {
+            if (!connection.IsConnected)
+                return new { uri = "solidworks://configurations", error = "Not connected to SolidWorks" };
+
+            var doc = connection.ActiveDocument;
+            if (doc == null)
+                return new { uri = "solidworks://configurations", error = "No active document" };
+
+            var configMgr = doc.ConfigurationManager;
+            var activeConfig = configMgr.ActiveConfiguration;
+            var configNames = (string[])doc.GetConfigurationNames();
+
+            var configurations = new List<object>();
+            if (configNames != null)
+            {
+                foreach (var configName in configNames)
+                {
+                    var config = (Configuration?)doc.GetConfigurationByName(configName);
+                    if (config != null)
+                    {
+                        configurations.Add(new
+                        {
+                            name = config.Name,
+                            description = config.Description,
+                            isActive = config.Name == activeConfig.Name,
+                            useAlternateNameInBOM = config.UseAlternateNameInBOM()
+                        });
+                    }
+                }
+            }
+
+            return new
+            {
+                uri = "solidworks://configurations",
+                content = new
+                {
+                    activeConfiguration = activeConfig?.Name,
+                    configurationCount = configurations.Count,
+                    configurations = configurations
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            return new { uri = "solidworks://configurations", error = ex.Message };
+        }
+    }
+
+    // Helper method
+    private static string GetSegmentTypeName(SketchSegment segment)
+    {
+        // Try to determine segment type
+        if (segment is SketchLine) return "Line";
+        if (segment is SketchArc) return "Arc";
+        if (segment is SketchEllipse) return "Ellipse";
+        if (segment is SketchSpline) return "Spline";
+        if (segment is SketchParabola) return "Parabola";
+
+        return "Unknown";
+    }
+}

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "solidworks": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "Path\\To\\SolidWorksMCP.csproj"
+      ]
+    }
+  }
+}
