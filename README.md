@@ -16,14 +16,14 @@ Simple, deterministic tools for common operations:
 - `create_circle` - Add circles to sketches
 - `create_line` - Add lines to sketches
 - `create_base_flange` - Create sheet metal base flange features (first feature in sheet metal parts)
-- `create_edge_flange` - Create edge flanges on sheet metal parts
+- `create_edge_flange` - Create edge flanges on sheet metal parts - *Doesn't work due to failure to select / maintain edge selection*
 - `get_model_info` - Get document information
-- `save_document` - Save documents
+- `save_document` - Save documents - *depends on process / directory permissions*
 
 ### 2: Dynamic API Execution
 Flexible tools for arbitrary SolidWorks API calls:
-- `execute_solidworks_api` - Execute any SolidWorks API method
-- `access_solidworks_property` - Get/set properties on interfaces
+- `execute_solidworks_api` - Execute any SolidWorks API method - *barely works, no good for anything complex (yet)*
+- `access_solidworks_property` - Get/set properties on interfaces - *works on some stuff*
 
 ### 3: Resources for State Inspection
 Expose SolidWorks state as readable data:
@@ -34,7 +34,7 @@ Expose SolidWorks state as readable data:
 
 ### 4: API Documentation Search
 Self-documenting capabilities:
-- `search_solidworks_api` - Full-text search of API documentation
+- `search_solidworks_api` - Full-text search of API documentation - *needs improvement*
 - `get_interface_documentation` - Get interface details
 - `get_method_documentation` - Get method details
 - `get_code_examples` - Find C# code examples
@@ -137,7 +137,7 @@ Claude will:
 4. Use create_base_flange with thickness 0.002 [meters]
 ```
 
-### Advanced API Calls
+### Advanced API Calls - *barely works*
 
 ```
 User: "Use the SolidWorks API to create a fillet with radius 5mm on the selected edges"
@@ -155,7 +155,7 @@ User: "What features are in the current model?"
 Claude will use get_feature_tree_resource to list all features.
 ```
 
-### Learning the API
+### Learning the API - *needs improvement*
 
 ```
 User: "How do I create a mate in an assembly?"
@@ -204,7 +204,7 @@ Or on failure:
 ### API Documentation Search
 
 The documentation search service indexes the HTML documentation files on first use and caches the results for the session. It uses:
-- Full-text search across 13,000+ HTML files
+- Full-text search across 13,000+ HTML files (need to convert from CHM)
 - Relevance scoring based on term frequency and file names
 - Extraction of descriptions, syntax, and remarks from structured documentation
 
@@ -312,7 +312,7 @@ return interfaceName.ToLowerInvariant() switch
 
 ## License
 
-This project is provided as-is for use with SolidWorks 2020. Ensure compliance with SolidWorks API licensing terms.
+This project is provided as-is for use with SolidWorks 2020. Ensure compliance with SolidWorks API licensing terms.  Do whateveryh you want with what's provided here, it's all from publicly available documentation.
 
 ## References
 
